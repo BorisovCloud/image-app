@@ -1,0 +1,29 @@
+# Terraform variables configuration file
+# Copy this file to terraform.tfvars and customize values as needed
+
+# Azure region where resources will be created
+location = "East US"
+
+# Environment name (dev, staging, prod)
+environment = "dev"
+
+# Project name (used in resource naming)
+project_name = "imageapp"
+
+# Storage account configuration
+storage_account_tier     = "Standard"
+storage_replication_type = "LRS"
+
+# Blob container access level
+# "private" - Private access (requires SAS tokens)
+# "blob"    - Public read access for blobs only
+# "container" - Public read access for containers and blobs
+blob_container_access_type = "private"
+
+# Resource tags
+tags = {
+  Project     = "Image Upload App"
+  Environment = "Development"
+  ManagedBy   = "Terraform"
+  Owner       = "DevOps Team"
+}

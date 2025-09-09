@@ -1,83 +1,270 @@
-# Image Upload Flask App
+# Image Upload App - Complete Azure Solution
 
-A Flask web application that allows users to upload JPG/PNG images to Azure Blob Storage and displays all uploaded images in a responsive gallery.
+A complete solution for image uploading using Flask and Azure Blob Storage, with Terraform infrastructure as code.
 
-## Features
+## 🏗️ Project Structure
 
-- 🖼️ Upload JPG, JPEG, and PNG images (max 10MB)
-- ☁️ Stores images in Azure Blob Storage
-- 🖥️ Responsive image gallery with thumbnails
-- 🔒 Secure file handling with validation
-- 🎨 Clean, modern UI with CSS Grid
-- ⚡ Flash messages for user feedback
-- 🔑 Support for both public and private blob containers
-- 🔐 SAS token generation for private containers
-
-## Requirements
-
-- Python 3.10+ (3.13+ preferred)
-- Azure Storage Account
-- Azure Blob Container
-
-## Installation & Setup
-
-### 1. Clone and Navigate
-
-```bash
-git clone <repository-url>
-cd image-app
+```
+image-app/
+├── terraform/           # Infrastructure as Code
+│   ├── main.tf         # Terraform provider configuration
+│   ├── variables.tf    # Variable definitions
+│   ├── resources.tf    # Azure resource definitions
+│   ├── outputs.tf      # Output values
+│   ├── terraform.tfvars.example
+│   └── README.md       # Terraform documentation
+├── webapp/             # Flask Web Application
+│   ├── app.py         # Main Flask application
+│   ├── requirements.txt
+│   ├── templates/
+│   │   └── index.html # Web interface
+│   ├── Dockerfile     # Container configuration
+│   ├── .env.example   # Environment template
+│   └── README.md      # Webapp documentation
+├── .gitignore
+└── README.md          # This file
 ```
 
-### 2. Create Virtual Environment
+## 🚀 Quick Start Guide
+
+### 1. Provision Azure Infrastructure
 
 ```bash
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux/Mac
-source .venv/bin/activate
+# Navigate to terraform directory
+cd terraform
+
+# Configure variables
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your preferences
+
+# Initialize and deploy
+terraform init
+terraform plan
+terraform apply
+
+# Generate webapp configuration
+terraform output -raw env_file_content > ../webapp/.env
 ```
 
-### 3. Install Dependencies
+### 2. Deploy Web Application
 
 ```bash
+# Navigate to webapp directory
+cd ../webapp
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Configure Environment Variables
-
-Copy `.env.example` to `.env` and configure your Azure Storage settings:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your Azure Storage details:
-
-```env
-# Primary configuration (recommended)
-AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;AccountName=your_account_name;AccountKey=your_account_key;EndpointSuffix=core.windows.net
-
-# Alternative configuration
-# AZURE_STORAGE_ACCOUNT=your_storage_account_name
-# AZURE_STORAGE_KEY=your_storage_account_key
-
-# Container settings
-AZURE_BLOB_CONTAINER=uploads
-AZURE_PUBLIC_CONTAINER=false
-
-# Flask settings
-FLASK_SECRET_KEY=your-super-secret-key-change-this-in-production
-FLASK_DEBUG=true
-```
-
-### 5. Run the Application
-
-```bash
+# Run the application
 python app.py
 ```
 
-The application will be available at `http://localhost:5000`
+### 3. Access Application
+
+Visit `http://localhost:5000` to upload and view images.
+
+## 📋 Prerequisites
+
+### For Infrastructure (Terraform):
+- Azure CLI installed and authenticated
+- Terraform v1.0+ installed
+- Azure subscription with contributor access
+
+### For Web Application:
+- Python 3.10+ (3.13+ preferred)
+- Azure Storage Account (created by Terraform)
+
+## 🎯 Features
+
+### Infrastructure (Terraform)
+- ✅ Azure Resource Group
+- ✅ Azure Storage Account with configurable tiers
+- ✅ Blob containers for uploads and thumbnails
+- ✅ Application Insights for monitoring
+- ✅ Security best practices (TLS 1.2, CORS, retention policies)
+- ✅ Comprehensive outputs for application configuration
+
+### Web Application (Flask)
+- ✅ Upload JPG, JPEG, PNG images (max 10MB)
+- ✅ Responsive image gallery with thumbnails
+- ✅ Secure file validation and handling
+- ✅ Support for public and private blob containers
+- ✅ SAS token generation for secure access
+- ✅ Modern UI with CSS Grid
+- ✅ Docker support for containerized deployment
+
+## 🛡️ Security Features
+
+### Infrastructure Security
+- TLS 1.2 minimum for storage accounts
+- Configurable container access levels
+- Resource tagging for governance
+- Soft delete and versioning enabled
+
+### Application Security
+- File extension and MIME type validation
+- Secure filename generation with UUIDs
+- No hardcoded secrets
+- Environment-based configuration
+- SAS tokens for private container access
+
+## 📊 Architecture
+
+```
+┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Browser   │───▶│  Flask Web App   │───▶│ Azure Blob      │
+│             │◀───│  (Port 5000)     │◀───│ Storage         │
+└─────────────┘    └──────────────────┘    └─────────────────┘
+                            │
+                            ▼
+                   ┌──────────────────┐
+                   │ Application      │
+                   │ Insights         │
+                   └──────────────────┘
+```
+
+## 🔧 Configuration Options
+
+### Terraform Variables
+
+| Variable | Description | Default | Options |
+|----------|-------------|---------|---------|
+| `location` | Azure region | "East US" | Any Azure region |
+| `environment` | Environment name | "dev" | dev, staging, prod |
+| `storage_account_tier` | Storage performance | "Standard" | Standard, Premium |
+| `blob_container_access_type` | Container access | "private" | private, blob, container |
+
+### Application Environment
+
+```env
+# Azure Storage (auto-generated by Terraform)
+AZURE_STORAGE_CONNECTION_STRING=...
+AZURE_BLOB_CONTAINER=uploads
+AZURE_PUBLIC_CONTAINER=false
+
+# Flask Configuration
+FLASK_SECRET_KEY=your-secret-key
+FLASK_DEBUG=false
+```
+
+## 🚀 Deployment Options
+
+### Local Development
+1. Use Terraform to create Azure resources
+2. Run Flask app locally with generated configuration
+
+### Docker Deployment
+```bash
+cd webapp
+docker build -t image-upload-app .
+docker run -p 5000:5000 --env-file .env image-upload-app
+```
+
+### Azure App Service
+1. Deploy infrastructure with Terraform
+2. Deploy webapp to Azure App Service
+3. Configure environment variables from Terraform outputs
+
+### Container Instances
+```bash
+# Build and push to Azure Container Registry
+# Deploy to Azure Container Instances
+```
+
+## 📚 Documentation
+
+- **[Terraform Documentation](terraform/README.md)** - Infrastructure provisioning guide
+- **[Webapp Documentation](webapp/README.md)** - Flask application guide
+
+## 🔍 Troubleshooting
+
+### Infrastructure Issues
+```bash
+cd terraform
+terraform refresh
+terraform plan
+```
+
+### Application Issues
+```bash
+cd webapp
+python app.py  # Check startup logs
+```
+
+### Common Problems
+
+**Terraform state issues:**
+- Check Azure CLI authentication: `az account show`
+- Verify subscription access: `az account list`
+
+**Storage connection issues:**
+- Verify connection string format
+- Check container exists in Azure Portal
+- Validate access keys are current
+
+**Application errors:**
+- Check `.env` file exists in webapp directory
+- Verify Python dependencies installed
+- Review application logs for specific errors
+
+## 🧹 Cleanup
+
+```bash
+# Destroy all Azure resources
+cd terraform
+terraform destroy
+```
+
+## 📈 Monitoring and Observability
+
+- **Application Insights** - Performance and error monitoring
+- **Azure Monitor** - Infrastructure metrics
+- **Storage Analytics** - Blob access patterns
+- **Flask Logging** - Application-level debugging
+
+## 🔄 CI/CD Integration
+
+### GitHub Actions Example
+
+```yaml
+name: Deploy Image Upload App
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v1
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform init
+          terraform apply -auto-approve
+
+  deploy:
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Azure App Service
+        # Add your deployment steps
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make changes to `terraform/` or `webapp/` as needed
+4. Test locally
+5. Submit a pull request
+
+## 📄 License
+
+MIT License - see LICENSE file for details
 
 ## Azure Storage Setup
 
