@@ -12,6 +12,14 @@ resource "azurerm_resource_group" "main" {
   tags     = var.tags
 }
 
+# Create User-Assigned Managed Identity
+resource "azurerm_user_assigned_identity" "main" {
+  name                = "id-${var.project_name}-${var.environment}"
+  resource_group_name = azurerm_resource_group.main.name
+  location            = azurerm_resource_group.main.location
+  tags                = var.tags
+}
+
 # Create Storage Account
 resource "azurerm_storage_account" "main" {
   name                     = "${var.project_name}${var.environment}${random_string.suffix.result}"
@@ -58,28 +66,16 @@ resource "azurerm_storage_container" "thumbnails" {
   container_access_type = var.blob_container_access_type
 }
 
-# Optional: Application Insights for monitoring
-# resource "azurerm_application_insights" "main" {
-#   name                = "ai-${var.project_name}-${var.environment}"
-#   location            = azurerm_resource_group.main.location
-#   resource_group_name = azurerm_resource_group.main.name
-#   application_type    = "web"
-#   retention_in_days   = 90
-
-#   tags = var.tags
-# }
-
-resource "azurerm_user_assigned_identity" "main" {
-  location            = azurerm_resource_group.main.location
-  name                = "uai-${var.project_name}-${var.environment}"
-  resource_group_name = azurerm_resource_group.main.name
+# Assign Storage Blob Data Contributor role to the managed identity
+resource "azurerm_role_assignment" "storage_blob_data_contributor" {
+  scope                = azurerm_storage_account.main.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
 }
 
-resource "azurerm_container_registry" "main" {
-  name                = "acr${var.project_name}${var.environment}"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = azurerm_resource_group.main.name
-  sku                 = "Basic"
-  admin_enabled       = false
-  tags                = var.tags
+# Assign Storage Account Contributor role for container management
+resource "azurerm_role_assignment" "storage_account_contributor" {
+  scope                = azurerm_storage_account.main.id
+  role_definition_name = "Storage Account Contributor"
+  principal_id         = azurerm_user_assigned_identity.main.principal_id
 }

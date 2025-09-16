@@ -5,6 +5,7 @@ from uuid import uuid4
 from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 from azure.storage.blob import BlobServiceClient, generate_blob_sas, BlobSasPermissions
+from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from azure.core.exceptions import AzureError
 from dotenv import load_dotenv
 
@@ -22,11 +23,18 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB limit
 
 # Azure configuration
-AZURE_CONNECTION_STRING = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
-AZURE_ACCOUNT_NAME = os.getenv('AZURE_STORAGE_ACCOUNT')
-AZURE_ACCOUNT_KEY = os.getenv('AZURE_STORAGE_KEY')
+AZURE_STORAGE_ACCOUNT_NAME = os.getenv('AZURE_STORAGE_ACCOUNT_NAME')
+AZURE_STORAGE_ACCOUNT_URL = f"https://{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
 AZURE_CONTAINER_NAME = os.getenv('AZURE_BLOB_CONTAINER', 'uploads')
 AZURE_PUBLIC_CONTAINER = os.getenv('AZURE_PUBLIC_CONTAINER', 'false').lower() == 'true'
+
+# Managed Identity configuration
+AZURE_CLIENT_ID = os.getenv('AZURE_CLIENT_ID')  # User-assigned managed identity client ID
+USE_MANAGED_IDENTITY = os.getenv('USE_MANAGED_IDENTITY', 'true').lower() == 'true'
+
+# Fallback to connection string/keys for local development
+AZURE_CONNECTION_STRING = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+AZURE_ACCOUNT_KEY = os.getenv('AZURE_STORAGE_KEY')
 
 # Allowed image extensions and MIME types
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png'}
@@ -37,15 +45,39 @@ MIME_TYPES = {
 }
 
 def get_blob_service_client():
-    """Initialize and return BlobServiceClient"""
+    """Initialize and return BlobServiceClient using Managed Identity or fallback credentials"""
     try:
-        if AZURE_CONNECTION_STRING:
-            return BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
-        elif AZURE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY:
-            account_url = f"https://{AZURE_ACCOUNT_NAME}.blob.core.windows.net"
-            return BlobServiceClient(account_url=account_url, credential=AZURE_ACCOUNT_KEY)
+        if USE_MANAGED_IDENTITY:
+            # Use Managed Identity for authentication
+            if AZURE_CLIENT_ID:
+                # User-assigned managed identity
+                credential = ManagedIdentityCredential(client_id=AZURE_CLIENT_ID)
+                logger.info("Using user-assigned managed identity for authentication")
+            else:
+                # System-assigned managed identity or DefaultAzureCredential chain
+                credential = DefaultAzureCredential()
+                logger.info("Using DefaultAzureCredential for authentication")
+            
+            # Determine account URL
+            if AZURE_STORAGE_ACCOUNT_NAME:
+                account_url = f"https://{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
+            else:
+                raise ValueError("AZURE_STORAGE_ACCOUNT_URL or AZURE_STORAGE_ACCOUNT_NAME must be provided for managed identity")
+            
+            return BlobServiceClient(account_url=account_url, credential=credential)
+        
         else:
-            raise ValueError("Azure Storage credentials not configured properly")
+            # Fallback to connection string or account key for local development
+            if AZURE_CONNECTION_STRING:
+                logger.info("Using connection string for authentication")
+                return BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
+            elif AZURE_STORAGE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY:
+                account_url = f"https://{AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
+                logger.info("Using account key for authentication")
+                return BlobServiceClient(account_url=account_url, credential=AZURE_ACCOUNT_KEY)
+            else:
+                raise ValueError("Azure Storage credentials not configured properly")
+                
     except Exception as e:
         logger.error(f"Failed to initialize Azure Blob Service Client: {e}")
         raise
@@ -112,28 +144,57 @@ def blob_url(blob_name):
         if AZURE_PUBLIC_CONTAINER:
             return blob_client.url
         else:
-            # Generate SAS token for private container
-            account_key = AZURE_ACCOUNT_KEY
-            
-            # If no explicit account key, try to extract from connection string
-            if not account_key and AZURE_CONNECTION_STRING:
-                account_key = extract_account_key_from_connection_string(AZURE_CONNECTION_STRING)
-            
-            if account_key:
-                # Use account key method
-                sas_token = generate_blob_sas(
-                    account_name=blob_client.account_name,
-                    container_name=AZURE_CONTAINER_NAME,
-                    blob_name=blob_name,
-                    account_key=account_key,
-                    permission=BlobSasPermissions(read=True),
-                    expiry=datetime.utcnow() + timedelta(hours=1),
-                    protocol="https"
-                )
-                return f"{blob_client.url}?{sas_token}"
+            # For private containers, we need to generate SAS tokens
+            if USE_MANAGED_IDENTITY:
+                # When using managed identity, we need to use user delegation key for SAS
+                try:
+                    # Get user delegation key (valid for up to 7 days)
+                    user_delegation_key = blob_service_client.get_user_delegation_key(
+                        key_start_time=datetime.utcnow(),
+                        key_expiry_time=datetime.utcnow() + timedelta(hours=1)
+                    )
+                    
+                    # Generate SAS token using user delegation key
+                    from azure.storage.blob import generate_blob_sas, UserDelegationKey
+                    
+                    sas_token = generate_blob_sas(
+                        account_name=blob_client.account_name,
+                        container_name=AZURE_CONTAINER_NAME,
+                        blob_name=blob_name,
+                        user_delegation_key=user_delegation_key,
+                        permission=BlobSasPermissions(read=True),
+                        expiry=datetime.utcnow() + timedelta(hours=1),
+                        protocol="https"
+                    )
+                    return f"{blob_client.url}?{sas_token}"
+                    
+                except Exception as e:
+                    logger.error(f"Failed to generate SAS with user delegation key: {e}")
+                    logger.info("Falling back to direct blob URL (may not work for private containers)")
+                    return blob_client.url
             else:
-                logger.error(f"Cannot generate SAS token - no account key available")
-                return "#"
+                # Use account key method for SAS generation
+                account_key = AZURE_ACCOUNT_KEY
+                
+                # If no explicit account key, try to extract from connection string
+                if not account_key and AZURE_CONNECTION_STRING:
+                    account_key = extract_account_key_from_connection_string(AZURE_CONNECTION_STRING)
+                
+                if account_key:
+                    sas_token = generate_blob_sas(
+                        account_name=blob_client.account_name,
+                        container_name=AZURE_CONTAINER_NAME,
+                        blob_name=blob_name,
+                        account_key=account_key,
+                        permission=BlobSasPermissions(read=True),
+                        expiry=datetime.utcnow() + timedelta(hours=1),
+                        protocol="https"
+                    )
+                    return f"{blob_client.url}?{sas_token}"
+                else:
+                    logger.error(f"Cannot generate SAS token - no account key available")
+                    return "#"
+                    
     except Exception as e:
         logger.error(f"Error generating blob URL for {blob_name}: {e}")
         return "#"
@@ -249,13 +310,20 @@ def handle_exception(e):
 if __name__ == '__main__':
     # Validate configuration on startup
     try:
-        if not (AZURE_CONNECTION_STRING or (AZURE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY)):
-            raise ValueError("Azure Storage credentials not configured")
+        if USE_MANAGED_IDENTITY:
+            if not (AZURE_STORAGE_ACCOUNT_URL or AZURE_STORAGE_ACCOUNT_NAME):
+                raise ValueError("AZURE_STORAGE_ACCOUNT_URL or AZURE_STORAGE_ACCOUNT_NAME must be provided for managed identity")
+            logger.info("Using Managed Identity authentication")
+        else:
+            if not (AZURE_CONNECTION_STRING or (AZURE_STORAGE_ACCOUNT_NAME and AZURE_ACCOUNT_KEY)):
+                raise ValueError("Azure Storage credentials not configured")
+            logger.info("Using connection string/account key authentication")
         
         # Test Azure connection
         ensure_container_exists()
         logger.info(f"Successfully connected to Azure Storage, container: {AZURE_CONTAINER_NAME}")
         logger.info(f"Public container mode: {AZURE_PUBLIC_CONTAINER}")
+        logger.info(f"Authentication method: {'Managed Identity' if USE_MANAGED_IDENTITY else 'Connection String/Account Key'}")
         
     except Exception as e:
         logger.error(f"Startup error: {e}")
