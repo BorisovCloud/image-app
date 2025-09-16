@@ -52,5 +52,6 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest ./webapp
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }} ./webapp
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest
+          docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }}
