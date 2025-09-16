@@ -68,3 +68,9 @@ resource "azurerm_storage_container" "thumbnails" {
 
 #   tags = var.tags
 # }
+
+resource "azurerm_user_assigned_identity" "main" {
+  location            = azurerm_resource_group.main.location
+  name                = "uai-${var.project_name}-${var.environment}"
+  resource_group_name = azurerm_resource_group.main.name
+}
