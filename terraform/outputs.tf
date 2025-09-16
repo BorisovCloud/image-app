@@ -66,3 +66,8 @@ FLASK_DEBUG=false
 EOT
   sensitive = true
 }
+
+output "acr_login_server" {
+  description = "Azure Container Registry login server"
+  value       = azurerm_container_registry.main.login_server
+}
