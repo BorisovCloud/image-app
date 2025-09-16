@@ -45,11 +45,12 @@ jobs:
         run: |
           cd terraform
           echo "ACR_NAME=$(terraform output -raw acr_name)" >> ${GITHUB_ENV}
+          echo "ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)" >> ${GITHUB_ENV}
 
       - name: Login to Azure Container Registry using OIDC
         run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ env.ACR_NAME }}/${{ env.REPO }}:latest ./webapp
-          docker push ${{ env.ACR_NAME }}/${{ env.REPO }}:latest
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest ./webapp
+          docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest
