@@ -69,9 +69,6 @@ AZURE_PUBLIC_CONTAINER=${var.blob_container_access_type == "blob" ? "true" : "fa
 FLASK_SECRET_KEY=your-super-secret-key-change-this-in-production
 FLASK_DEBUG=false
 
-# Application Insights (optional)
-APPINSIGHTS_INSTRUMENTATIONKEY=${azurerm_application_insights.main.instrumentation_key}
-APPLICATIONINSIGHTS_CONNECTION_STRING=${azurerm_application_insights.main.connection_string}
 EOT
   sensitive = true
 }
