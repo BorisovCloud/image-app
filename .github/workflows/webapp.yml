@@ -52,6 +52,10 @@ jobs:
           cd terraform
           echo "AZURE_STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)" >> ${GITHUB_ENV}
 
+      - name: Get AZURE_CLIENT_ID from Terraform Output
+        run: |
+          cd terraform
+          echo "AZURE_CLIENT_ID=$(terraform output -raw managed_identity_client_id)" >> ${GITHUB_ENV}
       - name: Login to Azure Container Registry using OIDC
         run: az acr login --name ${{ env.ACR_NAME }}
 
@@ -60,6 +64,7 @@ jobs:
           docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest \
             -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }} \
             --build-arg AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }} \
+            --build-arg AZURE_CLIENT_ID=${{ env.AZURE_CLIENT_ID }} \
             ./webapp
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }}
