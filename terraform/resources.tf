@@ -120,7 +120,7 @@ resource "azurerm_linux_web_app" "main" {
   site_config {
     application_stack {
       docker_registry_url      = "https://${azurerm_container_registry.main.login_server}"
-      docker_image_name        = "${var.project_name}:latest"
+      docker_image_name        = "${var.project_name}:9"
     }
   }
 
