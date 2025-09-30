@@ -47,11 +47,19 @@ jobs:
           echo "ACR_NAME=$(terraform output -raw acr_name)" >> ${GITHUB_ENV}
           echo "ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)" >> ${GITHUB_ENV}
 
+      - name: Get Storage Account name from Terraform Output
+        run: |
+          cd terraform
+          echo "AZURE_STORAGE_ACCOUNT_NAME=$(terraform output -raw storage_account_name)" >> ${GITHUB_ENV}
+
       - name: Login to Azure Container Registry using OIDC
         run: az acr login --name ${{ env.ACR_NAME }}
 
       - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }} ./webapp
+          docker build -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest \
+            -t ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }} \
+            --build-arg AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }} \
+            ./webapp
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }}

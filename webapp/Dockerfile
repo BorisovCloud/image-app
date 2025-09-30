@@ -8,6 +8,9 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+ARG AZURE_STORAGE_ACCOUNT_NAME
+ENV AZURE_STORAGE_ACCOUNT_NAME=$AZURE_STORAGE_ACCOUNT_NAME
+
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
