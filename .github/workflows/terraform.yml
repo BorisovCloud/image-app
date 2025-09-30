@@ -10,6 +10,12 @@ on:
         options:
           - apply
           - destroy
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/terraform.yml'
 
 permissions:
   packages: write
@@ -49,10 +55,20 @@ jobs:
           cd terraform
           terraform validate
     
-      - name: Terraform Apply
+      - name: Terraform Apply or Destroy (based on input)
+        if: github.event_name == 'workflow_dispatch'
         env:
           TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_project_name: ${{ env.REPO }}
         run: |
           cd terraform
           terraform ${{ github.event.inputs.terraform_action }} -auto-approve -input=false
+
+      - name: Terraform Apply on Push to main
+        if: github.event_name == 'push'
+        env:
+          TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          TF_VAR_project_name: ${{ env.REPO }}
+        run: |
+          cd terraform
+          terraform apply -auto-approve -input=false
