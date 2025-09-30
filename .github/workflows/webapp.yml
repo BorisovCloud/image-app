@@ -68,3 +68,12 @@ jobs:
             ./webapp
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:latest
           docker push ${{ env.ACR_LOGIN_SERVER }}/${{ env.REPO }}:${{ github.run_number }}
+
+      - name: Update docker image tag in Terraform file
+        run: |
+          sed -E -i 's#(docker_image_name[[:space:]]*=[[:space:]]*".*):[^"]+"#\1:'"${{ github.run_number }}"'"#' terraform/resources.tf
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add terraform/resources.tf
+          git commit -m "Update docker image tag to ${{ github.run_number }}" || echo "No changes to commit"
+          git push origin main
